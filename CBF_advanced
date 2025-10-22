@@ -7,12 +7,12 @@ clear; close all; clc;
 N = 3;                   % number of vehicles (1 leader + N-1 followers)
 d_des = 10;              % desired spacing (m)
 kp = 1; kv = 2;         % nominal controller gains
-acc_max = 4;           % actuator bounds
+acc_max = 5;           % actuator bounds
 
 tau_d = 1.8;             % headway-like parameter in h = D - tau_d * v_f
 gamma = 1;             % alpha(h) = gamma * h
 
-tspan=[0:10^-1:30];               % simulation horizon
+tspan=[0:10^(-1):30];               % simulation horizon
 x0 = zeros(3*N,1);       % initial state [p1,v1,rho1,...,pN,vN,rhoN]
 
 a=0.5;                   %macro function paramters
@@ -67,6 +67,8 @@ function [u_nom, u_star, u_req] = compute_control(t,p,v,rho,N,d_des,kp,kv,tau_d,
         Dvi_CP_dot = -kp * dv;
         Dvi_CP = -kp * (D - d_des);
         u_nom(i) = u_star(i-1) + Dvi_CP_dot - kv*(dv - Dvi_CP) - (D - d_des) - rho(i);
+        % u_nom(i) = min(max(u_nom(i), -acc_max), acc_max); % clip to actuator limits
+
 
         % --- CBF constraint ---
         % h = -D - tau_d*v(i);
@@ -92,20 +94,19 @@ function [u_nom, u_star, u_req] = compute_control(t,p,v,rho,N,d_des,kp,kv,tau_d,
 
         u_star(i)=min(u_nom(i),u_req(i));
         % u_star(i) = min(max(u_star(i), -acc_max), acc_max);
- 
 
 
         % --- QP formulation ---
         % Minimize (1/2)*(u - u_nom)^2 s.t. u <=u_req and actuator limits
-        % H = 1;       % 1x1 quadratic term
-        % f = -u_nom(i); % linear term
-        % A = 1;      % inequality: u <= u_req
-        % b = u_req(i);
-        % lb = -acc_max;
-        % ub = acc_max;
-        % options = optimoptions('quadprog','Display','off');
-        % u_star(i)= quadprog(H,f,A,b,[],[],[],[],[],options);
-        % 
+        H = 1;       % 1x1 quadratic term
+        f = -u_nom(i); % linear term
+        A = 1;      % inequality: u <= u_req
+        b = u_req(i);
+        lb = -acc_max;
+        ub = acc_max;
+        options = optimoptions('quadprog','Display','off');
+        u_star(i)= quadprog(H,f,A,b,[],[],[],[],[],options);
+
         % rho_slack = 0.1;  % peso della penalizzazione del slack
         % H = [1 0; 0 rho_slack];   % 2x2
         % f = [-u_nom(i); 0];       % linear term
@@ -117,7 +118,7 @@ function [u_nom, u_star, u_req] = compute_control(t,p,v,rho,N,d_des,kp,kv,tau_d,
         % sol = quadprog(H,f,A,b,[],[],[],[],[],options);
         % u_star(i) = sol(1);
 
-        
+
     end
 end
 
@@ -156,12 +157,9 @@ function dx = platoon_dyn(t,x,N,d_des,kp,kv,a,b,l,sum_p,sum_v,v_leader_fun,tau_d
     dx(1)=v(1);
     dx(2)=u_nom(1);
 
-    
     if(t>10 && t<15)
       dx(2)=-acc_max;
     end
-
-
     
     % followers
     for i=2:N
@@ -174,7 +172,7 @@ function dx = platoon_dyn(t,x,N,d_des,kp,kv,a,b,l,sum_p,sum_v,v_leader_fun,tau_d
 
 
         dx(3*i-2) = v(i);
-        dx(3*i-1) = u_nom(i);
+        dx(3*i-1) = u_star(i);
         dx(3*i)  = -l*x(3*i)+a*psi_p+b*psi_v;
 
     end
@@ -211,24 +209,20 @@ e  = (p(:,1:end-1) - p(:,2:end)) - d_des;   % [T x (N-1)]
 dv =  v(:,1:end-1) - v(:,2:end);            % [T x (N-1)]
 
 
-%% safety function h(t)
-h = zeros(length(t), N-1);
-dist = zeros(length(t), N-1);
-
-for k = 1:length(t)
-    for i = 2:N
-        D = p(k,i) - p(k,i-1);
-        dist(k,i-1) = D;
-        if v(k,i-1) >= v(k,i)
-            % Caso 1: il follower è più lento o uguale
-            h(k,i-1) = -D - tau_d*v(k,i);
-        else
-            % Caso 2: il follower è più veloce → frenata necessaria
-            h(k,i-1) = -D - tau_d*v(k,i) - ((v(k,i-1)-v(k,i))^2)/(2*acc_max);
-        end
-    end
+dist=zeros(length(t),N);
+h=zeros(length(t),N);
+for i=2:N
+    dist(:,i-1)=p(:,i)-p(:,i-1);
+    h(:,i-1)= -dist(:,i-1) - tau_d*v(:,i);
 end
 
+% for k = 1:length(t)
+%     for i = 2:N
+%         D = p(k,i) - p(k,i-1);
+%         dist(k,i-1) = D;
+%         h(k,i-1) = -D - tau_d*v(k,i);
+%     end
+% end
 
 
 
@@ -404,53 +398,14 @@ legend(s, 'Interpreter','Latex','FontSize',14, 'Location','Best');
 
 
 %% plot safety function
-% figure(7); hold on; grid on;
-% for i=1:N-1
-%     plot(t, h(:,i), 'LineWidth', 1.5, 'Color', colors(i,:));
-% end
-% xlabel('Time [s]'); ylabel('$h_i$', 'Interpreter','Latex');
-% title('CBF safety function');
-% s = strings(N-1,1);
-% for i = 1:N
-%     s(i) = strcat('h_{', string(i), '}'); 
-% end
-% l = legend(s);
-
-%% plot safety function con evidenziazione dei casi
-h = zeros(length(t), N-1);
-h_case = zeros(length(t), N-1);  % salva quale formula è stata usata
-for k = 1:length(t)
-    for i = 2:N
-        D = p(k,i) - p(k,i-1);
-        if v(k,i-1) >= v(k,i)
-            % follower più lento o uguale
-            h(k,i-1) = -D - tau_d*v(k,i);
-            h_case(k,i-1) = 1;  % caso 1
-        else
-            % follower più veloce
-            h(k,i-1) = -D - tau_d*v(k,i) + ((-v(k,i-1)+v(k,i))^2)/(2*acc_max);
-            h_case(k,i-1) = 2;  % caso 2
-        end
-    end
+figure(7); hold on; grid on;
+for i=1:N-1
+    plot(t, h(:,i), 'LineWidth', 1.5, 'Color', colors(i,:));
 end
-
-figure(7); 
-hold on; grid on;
-
-vehicle_colors = lines(N-1);
-
-for i = 1:N-1
-    % Caso 1: follower più lento o uguale
-    idx_case1 = h_case(:,i) == 1;
-    plot(t(idx_case1), h(idx_case1,i), '.', 'Color', vehicle_colors(i,:), 'MarkerSize', 10, 'DisplayName', strcat('$h_{',num2str(i),'}, v_f <= v_l$'));
-
-    % Caso 2: follower più veloce
-    idx_case2 = h_case(:,i) == 2;
-    plot(t(idx_case2), h(idx_case2,i), 'x', 'Color', vehicle_colors(i,:), 'MarkerSize', 8, 'DisplayName', strcat('$h_{',num2str(i),'}, v_f > v_l$'));
+xlabel('Time [s]'); ylabel('$h = (p_{i-1}-p_i) - \tau_d v$', 'Interpreter','Latex');
+title('CBF safety function');
+s = strings(N-1,1);
+for i = 1:N
+    s(i) = strcat('h_{', string(i), '}'); 
 end
-
-xlabel('Time [s]'); 
-ylabel('$h_i$', 'Interpreter','Latex');
-title('CBF safety function with case distinction', 'Interpreter','Latex');
-
-legend('Interpreter','Latex','FontSize',12,'Location','Best');
+l = legend(s);
