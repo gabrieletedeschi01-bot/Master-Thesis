@@ -1,3 +1,4 @@
+
 %% platoon_cbf_continuous.m
 % Continuous-time simulation of a platoon with nominal vs CBF-filtered control
 % Integration via ODE45
@@ -5,7 +6,7 @@
 clear; close all; clc;
 %% Parameters
 N = 3;                   % number of vehicles (1 leader + N-1 followers)
-d_des = 10;              % desired spacing (m)
+d_des = 20;              % desired spacing (m)
 kp = 1; kv = 2;         % nominal controller gains
 acc_max = 5;           % actuator bounds
 
@@ -24,9 +25,9 @@ sum_v=0;
 
 
 %% Initial conditions
-v0 = 20; % initial speed [m/s]
+v0 = 6; % initial speed [m/s]
 p0 = 600; %initial position [m]
-d_ini=10; %initial inter-vehic dist [m]
+d_ini=20; %initial inter-vehic dist [m]
 dv_ini=2;
 for i=1:N
     x0(3*i-2) = p0 - (i-1)*d_ini;
@@ -41,7 +42,7 @@ h=-(x0(4) - x0(1)) - tau_d*x0(5)
 
 
 %% Leader input (function of time)
-v_leader_fun = @(t)30;
+v_leader_fun = @(t)8;
 %% Dynamics with CBF filter using quadprog
 function [u_nom, u_star, u_req] = compute_control(t,p,v,rho,N,d_des,kp,kv,tau_d,gamma,acc_max,v_leader_fun)
     
@@ -75,7 +76,6 @@ function [u_nom, u_star, u_req] = compute_control(t,p,v,rho,N,d_des,kp,kv,tau_d,
         %h= -(D-d_des)-tau_d*v(i)
         u_req(i) = -dv/tau_d - (gamma*D)/tau_d - gamma*v(i);
 
-        u_star(i)=u_req(i);
 
 
         % --- QP formulation ---
@@ -140,7 +140,7 @@ function dx = platoon_dyn(t,x,N,d_des,kp,kv,a,b,l,sum_p,sum_v,v_leader_fun,tau_d
     dx(2)=u_nom(1);
 
     if(t>10 && t<15)
-      dx(2)=-acc_max;
+      dx(2)=u_nom(1)-acc_max;
     end
     
     % followers
