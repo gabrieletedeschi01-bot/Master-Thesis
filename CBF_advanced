@@ -7,7 +7,7 @@ clear; close all; clc;
 N = 3;                   % number of vehicles (1 leader + N-1 followers)
 d_des = 10;              % desired spacing (m)
 kp = 1; kv = 2;         % nominal controller gains
-acc_max = 5;           % actuator bounds
+acc_max = 3;           % actuator bounds
 
 tau_d = 1.8;             % headway-like parameter in h = D - tau_d * v_f
 gamma = 1;             % alpha(h) = gamma * h
@@ -24,7 +24,7 @@ sum_v=0;
 
 
 %% Initial conditions
-v0 = 20; % initial speed [m/s]
+v0 = 6; % initial speed [m/s]
 p0 = 600; %initial position [m]
 d_ini=10; %initial inter-vehic dist [m]
 dv_ini=2;
@@ -41,7 +41,7 @@ h=-(x0(4) - x0(1)) - tau_d*x0(5)
 
 
 %% Leader input (function of time)
-v_leader_fun = @(t)30;
+v_leader_fun = @(t)8 - acc_max*(t>10 && t<15);
 %% Dynamics with CBF filter using quadprog
 function [u_nom, u_star, u_req] = compute_control(t,p,v,rho,N,d_des,kp,kv,tau_d,gamma,acc_max,v_leader_fun)
     
@@ -73,10 +73,13 @@ function [u_nom, u_star, u_req] = compute_control(t,p,v,rho,N,d_des,kp,kv,tau_d,
         % --- CBF constraint ---
         % h = -D - tau_d*v(i);
         % u_req(i) = -dv/tau_d - (gamma*D)/tau_d - gamma*v(i);
+        
+        eps=1e-3;
+        if abs(dv)<eps
+            dv=0;
+        end
 
-
-
-        if v(i-1)>=v(i)
+        if dv<=0
             % --- CBF constraint ---
             h = -D - tau_d*v(i); 
 
@@ -84,15 +87,21 @@ function [u_nom, u_star, u_req] = compute_control(t,p,v,rho,N,d_des,kp,kv,tau_d,
         else
             h = -D -tau_d*v(i) -  ((v(i-1) - v(i))^2)/(2*acc_max);
             dh_dv = -tau_d + (v(i-1)-v(i))/acc_max;
+    
+            eps_reg = 1e-6;         % o 1e-4 se vuoi più robustezza
+            if abs(dh_dv) < eps_reg
+                dh_dv = sign(dh_dv + eps_reg) * eps_reg; % evita divisione per 0
+            end
+    
             dh_dv1 =  (v(i-1)- v(i)) / acc_max;
-
+    
             u_req(i) = ( -dv - dh_dv1*u_star(i-1) + gamma*h) / -dh_dv;
         end
 
         
 
 
-        u_star(i)=min(u_nom(i),u_req(i));
+         u_star(i)=min(u_nom(i),u_req(i));
         % u_star(i) = min(max(u_star(i), -acc_max), acc_max);
 
 
@@ -157,9 +166,9 @@ function dx = platoon_dyn(t,x,N,d_des,kp,kv,a,b,l,sum_p,sum_v,v_leader_fun,tau_d
     dx(1)=v(1);
     dx(2)=u_nom(1);
 
-    if(t>10 && t<15)
-      dx(2)=-acc_max;
-    end
+    % if(t>10 && t<15)
+    %   dx(2)=u_nom(1)-acc_max;
+    % end
     
     % followers
     for i=2:N
@@ -205,24 +214,36 @@ for k = 1:length(t)
     U_req(k,:)= u_req;
 end
 
-e  = (p(:,1:end-1) - p(:,2:end)) - d_des;   % [T x (N-1)]
-dv =  v(:,1:end-1) - v(:,2:end);            % [T x (N-1)]
+% e  = (p(:,1:end-1) - p(:,2:end)) - d_des;   % [T x (N-1)]
+% dv =  v(:,1:end-1) - v(:,2:end);            % [T x (N-1)]
 
 
 dist=zeros(length(t),N);
-h=zeros(length(t),N);
-for i=2:N
-    dist(:,i-1)=p(:,i)-p(:,i-1);
-    h(:,i-1)= -dist(:,i-1) - tau_d*v(:,i);
-end
+dv=zeros(length(t),N);
 
-% for k = 1:length(t)
-%     for i = 2:N
-%         D = p(k,i) - p(k,i-1);
-%         dist(k,i-1) = D;
-%         h(k,i-1) = -D - tau_d*v(k,i);
-%     end
+% h=zeros(length(t),N);
+% for i=2:N
+%     dist(:,i-1)=p(:,i)-p(:,i-1);
+%     % h(:,i-1)= -dist(:,i-1) - tau_d*v(:,i);
+%     h(:,i-1) = -dist(:,i-1) -tau_d*v(:,i) -  ((v(:,i-1) - v(:,i))^2)/(2*acc_max);
 % end
+
+for k = 1:length(t)
+    for i = 2:N
+        D = p(k,i) - p(k,i-1);
+        dist(k,i-1) = D;
+        dv(k,i-1)= v(k,i) - v(k,i-1);
+        if abs(dv(k,i-1))<eps
+            dv(k,i-1)=0;
+        end
+
+        if dv(k,i-1)<=0
+           h(k,i-1) = -D - tau_d*v(k,i);
+        else
+           h(k,i-1) = -dist(k,i-1) -tau_d*v(k,i) -  ((v(k,i-1) - v(k,i))^2)/(2*acc_max);
+        end
+    end
+end
 
 
 
@@ -276,6 +297,7 @@ set(l,'Interpreter','Latex'); l.FontSize = 16;
 l = ylabel("Speed [m/s]");
 set(l,'Interpreter','Latex'); l.FontSize = 16;
 hold on;
+grid on;
 
 
 for i = 2:N
@@ -285,18 +307,25 @@ end
 for i = 2:N
     s(i-1) = strcat(' $v_{', string(i-1), '}-v_{',string(i-2), '}$');
 end
-% for i=1:N
-%     vel = v(:,i);
-%     plot(t, vel, 'Color', colors(i,:), 'LineWidth', 1.5);
-% end
-% for i = 1:N
-%     s(i) = strcat(' $v_{', string(i-1), '}$');
-% end
 
-l = legend(s);
-set(l,'Interpreter','Latex','Orientation', 'vertical'); l.FontSize = 16;
-grid on
 
+figure(4);
+clf;
+l = title("Absolute Speeds of All Vehicles");
+set(l,'Interpreter','Latex'); l.FontSize = 16;
+xlabel("Time [s]", 'Interpreter','Latex','FontSize',16);
+ylabel("Speed [m/s]", 'Interpreter','Latex','FontSize',16);
+hold on;
+
+s_all = cell(1,N);
+for i = 1:N
+    plot(t, v(:,i), 'Color', colors(i,:), 'LineWidth', 1.5);
+    s_all{i} = strcat('$v_{', string(i-1), '}$');
+end
+
+l = legend(s_all, 'Interpreter','Latex', 'FontSize', 14, 'Location', 'Best');
+grid on;
+hold off;
 
 %% Plot u_nom vs u_star (CBF)
 % figure(3);
