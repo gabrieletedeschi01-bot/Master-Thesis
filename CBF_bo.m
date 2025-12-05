@@ -4,13 +4,13 @@
 
 clear; close all; clc;
 %% Parameters
-N = 3;                   % number of vehicles (1 leader + N-1 followers)
-d_des = 10;              % desired spacing (m)
+N = 10;                   % number of vehicles (1 leader + N-1 followers)
+d_des = 3;              % desired spacing (m)
 kp = 1; kv = 2;         % nominal controller gains
-acc_max = 5;           % actuator bounds
+acc_max = 10;           % actuator bounds
 
 tau_d = 1.8;             % headway-like parameter in h = D - tau_d * v_f
-gamma = 1;             % alpha(h) = gamma * h
+gamma = 5;             % alpha(h) = gamma * h
 
 tspan=[0:10^(-1):30];               % simulation horizon
 x0 = zeros(3*N,1);       % initial state [p1,v1,rho1,...,pN,vN,rhoN]
@@ -26,8 +26,8 @@ sum_v=0;
 %% Initial conditions
 v0 = 20; % initial speed [m/s]
 p0 = 600; %initial position [m]
-d_ini=10; %initial inter-vehic dist [m]
-dv_ini=2;
+d_ini=3; %initial inter-vehic dist [m]
+dv_ini=10;
 for i=1:N
     x0(3*i-2) = p0 - (i-1)*d_ini;
     x0(3*i-1) = v0; % velocity
@@ -35,9 +35,8 @@ for i=1:N
 
 end
 
-x0
-h=-(x0(4) - x0(1)) - tau_d*x0(5)
-%h=-(x0(4) - x0(1)- (-d_des)) - tau_d*x0(5)
+
+
 
 
 %% Leader input (function of time)
@@ -53,12 +52,10 @@ function [u_nom, u_star, u_req] = compute_control(t,p,v,rho,N,d_des,kp,kv,tau_d,
 
 
     % --- Leader ---
-    kl = 1;
+    kl = 2;
     u_nom(1) = -kl*(v(1) - v_leader_fun(t)); % nominal leader control
-    % u_nom(1) = min(max(u_nom(1), -acc_max), acc_max); % clip to actuator limits
+    u_nom(1) = min(max(u_nom(1), -acc_max), acc_max); % clip to actuator limits
     u_star(1)=u_nom(1);
-
-    
 
     % --- Followers ---
     for i = 2:N
@@ -68,13 +65,26 @@ function [u_nom, u_star, u_req] = compute_control(t,p,v,rho,N,d_des,kp,kv,tau_d,
         % --- Nominal control ---
         Dvi_CP_dot = -kp * dv;
         Dvi_CP = -kp * (D - d_des);
-        u_nom(i) = u_star(i-1) + Dvi_CP_dot - kv*(dv - Dvi_CP) - (D - d_des) - rho(i);
-        % u_nom(i) = min(max(u_nom(i), -acc_max), acc_max); % clip to actuator limits
+        u_nom(i) =  u_star(i-1)+Dvi_CP_dot - kv*(dv - Dvi_CP) - (D - d_des) - rho(i);
 
-
+        if i==10 && (t>10 && t<15)  %veic=9
+            u_nom(i) = u_nom(i)+acc_max;
+        end
+   
+        
         % --- CBF constraint ---
-        h = -D - tau_d*dv;
-        u_req(i) = u_star(i-1) - dv/tau_d + (gamma*h)/tau_d;
+        h = -D  - tau_d*dv;
+
+        % gamma_min=1;
+        % gamma_max=0.1;
+        % 
+        % 
+        % gamma_adapt = gamma_min + (gamma_max) * (h < 0);
+        % alpha_h=gamma_adapt*h;
+
+        alpha_h=gamma*h;
+
+        u_req(i) = u_star(i-1) - dv/tau_d + alpha_h/tau_d;
 
 
         % --- QP formulation ---
@@ -82,14 +92,12 @@ function [u_nom, u_star, u_req] = compute_control(t,p,v,rho,N,d_des,kp,kv,tau_d,
         H = 1;       % 1x1 quadratic term
         f = -u_nom(i); % linear term
         A = 1;      % inequality: u <= u_req
-        b = u_req(i);
+        % b = u_req(i);
+        b = max(u_req(i), -acc_max);
         lb = -acc_max;
         ub = acc_max;
         options = optimoptions('quadprog','Display','off');
-        u_star(i)= quadprog(H,f,A,b,[],[],[],[],[],options);
-
-        % u_star(i)=min(max(u_star(i),-acc_max),acc_max);
-
+        u_star(i)= quadprog(H,f,A,b,[],[],lb,ub,[],options);
 
     end
 end
@@ -127,12 +135,12 @@ function dx = platoon_dyn(t,x,N,d_des,kp,kv,a,b,l,sum_p,sum_v,v_leader_fun,tau_d
     
     %-----Leader dyn-----%
     dx(1)=v(1);
-    dx(2)=u_star(1);
+    dx(2)=u_nom(1);
 
-    if(t>10 && t<15)
-      dx(2)=u_star(1)-acc_max;
+    if t>10 && t<15
+        dx(2)=u_nom(1)+acc_max;
     end
-    
+
     % followers
     for i=2:N
         D = p(i)-p(i-1);
@@ -146,6 +154,10 @@ function dx = platoon_dyn(t,x,N,d_des,kp,kv,a,b,l,sum_p,sum_v,v_leader_fun,tau_d
         dx(3*i-2) = v(i);
         dx(3*i-1) = u_star(i);
         dx(3*i)  = -l*x(3*i)+a*psi_p+b*psi_v;
+
+        % if i==9 && (t>10 && t<15)  %veic=8
+        %     dx(3*i-1) = u_nom(i)-acc_max;
+        % end
 
     end
 end
@@ -177,15 +189,17 @@ for k = 1:length(t)
     U_req(k,:)= u_req;
 end
 
-e  = (p(:,1:end-1) - p(:,2:end)) - d_des;   % [T x (N-1)]
-dv =  v(:,1:end-1) - v(:,2:end);            % [T x (N-1)]
+
 
 
 dist=zeros(length(t),N);
 h=zeros(length(t),N);
+dv=zeros(length(t),N);
+
 for i=2:N
     dist(:,i-1)=p(:,i)-p(:,i-1);
-    h(:,i-1)= -dist(:,i-1) - tau_d*dv(:,i-1);
+    dv(:,i-1) = v(:, i) - v(:, i-1);
+    h(:,i-1)= -dist(:,i-1)  - tau_d*dv(:,i-1);
 end
 
 % for k = 1:length(t)
@@ -210,7 +224,15 @@ l = ylabel("Distance [m]");
 set(l,'Interpreter','Latex'); l.FontSize = 16;
 hold on
 
-colors = [linspace(0,0.6,N)', linspace(0,0.8,N)', linspace(0.3,1,N)']; 
+
+function cmap = bluegreen(n)
+    if nargin < 1
+        n = 64;
+    end
+    cmap = [linspace(0,0,n)', linspace(0,1,n)', linspace(1,0,n)'];
+end
+
+colors = bluegreen(N);
 
 hold on
 for i = 1:N-1
@@ -338,44 +360,26 @@ for i = 2:N
     plot(t, U_req(:,i), ':', 'Color', req_color, 'LineWidth', 2.5);
 end
 
+q1 = yline(acc_max,  '--k', 'LineWidth', 2);
+q2 = yline(-acc_max, '--k', 'LineWidth', 2);
+
 % Titolo e assi
 title("Control inputs comparison", 'Interpreter','Latex', 'FontSize',16);
 xlabel("Time [s]", 'Interpreter','Latex', 'FontSize',16);
 ylabel("Control input $\mathrm{[m/s^2]}$", 'Interpreter','Latex', 'FontSize',16);
 
 % Legenda chiara
-s = strings(3*(N-1),1);
+s = strings(3*(N+1),1);
 for i = 2:N
     s(3*(i-2)+1) = strcat('$u_{star,', string(i-1), '}$');
     s(3*(i-2)+2) = strcat('$u_{nom,', string(i-1), '}$');
     s(3*(i-2)+3) = strcat('$u_{req,', string(i-1), '}$');
 end
 
+s(end-1) = "$+a_{\max}$";
+s(end)   = "$-a_{\max}$";
+
 legend(s, 'Interpreter','Latex','FontSize',12, 'Location','Best');
-
-
-%% Separate figure: leader control
-figure;
-hold on; grid on;
-
-% plot ricomputati
-p1 = plot(t, U_star(:,1), '-',  'LineWidth', 1.8, 'DisplayName', '$u_{star,0}$');
-p2 = plot(t, U_nom(:,1),  '--', 'LineWidth', 1.6, 'DisplayName', '$u_{nom,0}$');
-p3 = plot(t, U_req(:,1),  ':',  'LineWidth', 1.6, 'DisplayName', '$u_{req,0}$');
-
-% ricostruisco l'accelerazione "effettiva" applicata al leader (simula il forzamento in platoon_dyn)
-applied = U_nom(:,1);                      % default: nominal ricomputato
-idx = (t > 10) & (t < 15);                 % finestra in cui nel dyn forzi dx(2)=u_star(1)-acc_max
-applied(idx) = U_star(idx,1) - acc_max;    % sovrascrivo per mostrare quello che è stato "applicato"
-p4 = plot(t, applied, '-o', 'LineWidth', 1.2, 'MarkerSize', 3, 'DisplayName', 'applied $u_{0}$');
-
-% estetica
-title('Leader control (separate)', 'Interpreter','Latex', 'FontSize',16);
-xlabel('Time [s]', 'Interpreter','Latex', 'FontSize',14);
-ylabel('Control input $\mathrm{[m/s^2]}$', 'Interpreter','Latex', 'FontSize',14);
-
-legend([p1 p2 p3 p4], 'Interpreter','Latex', 'Location','Best');
-
 
 
 figure(6);
@@ -398,7 +402,7 @@ figure(7); hold on; grid on;
 for i=1:N-1
     plot(t, h(:,i), 'LineWidth', 1.5, 'Color', colors(i,:));
 end
-xlabel('Time [s]'); ylabel('$h = (p_{i-1}-p_i) - \tau_d v$', 'Interpreter','Latex');
+xlabel('Time [s]'); ylabel('$h = -\Delta p_i - \tau_d \Delta v_i$', 'Interpreter','Latex');
 title('CBF safety function');
 s = strings(N-1,1);
 for i = 1:N
