@@ -6,12 +6,12 @@
 clear; close all; clc;
 %% Parameters
 N = 10;                   % number of vehicles (1 leader + N-1 followers)
-d_des = 5;              % desired spacing (m)
+d_des = 3;              % desired spacing (m)
 kp = 1; kv = 2;         % nominal controller gains
 acc_max = 10;           % actuator bounds
 
 tau_d = 1.8;             % headway-like parameter in h = D - tau_d * v_f
-gamma = 40;             % alpha(h) = gamma * h
+gamma = 2;             % alpha(h) = gamma * h
 
 tspan=[0:10^(-1):30];               % simulation horizon
 x0 = zeros(3*N,1);       % initial state [p1,v1,rho1,...,pN,vN,rhoN]
@@ -27,7 +27,7 @@ sum_u=0;
 %% Initial conditions
 v0 = 20; % initial speed [m/s]
 p0 = 600; %initial position [m]
-d_ini=5; %initial inter-vehic dist [m]
+d_ini=3; %initial inter-vehic dist [m]
 dv_ini=2;
 for i=1:N
     x0(3*i-2) = p0 - (i-1)*d_ini;
@@ -44,7 +44,7 @@ end
 %% Leader input (function of time)
 v_leader_fun = @(t)30;
 %% Dynamics with CBF filter using quadprog
-function [u_nom, u_star, u_req] = compute_control(t,p,v,rho,N,d_des,kp,kv,tau_d,gamma,acc_max,v_leader_fun,sum_p,sum_v,sum_u,a,b)
+function [u_nom, u_star, u_req] = compute_control(t,p,v,rho,N,d_des,kp,kv,tau_d,gamma,acc_max,v_leader_fun,a,b)
     
     d_des=-d_des;
     
@@ -54,7 +54,7 @@ function [u_nom, u_star, u_req] = compute_control(t,p,v,rho,N,d_des,kp,kv,tau_d,
 
 
     % --- Leader ---
-    kl = 1;
+    kl = 2;
     u_nom(1) = -kl*(v(1) - v_leader_fun(t)); % nominal leader control
     u_nom(1) = min(max(u_nom(1), -acc_max), acc_max); % clip to actuator limits
     u_star(1)=u_nom(1);
@@ -62,41 +62,77 @@ function [u_nom, u_star, u_req] = compute_control(t,p,v,rho,N,d_des,kp,kv,tau_d,
     % --- Followers ---
     for i = 2:N
 
-        
-
         D = p(i) - p(i-1);   % inter-vehicle distance
         dv = v(i) - v(i-1);  % relative velocity
-        du=u_star(i) - u_star(i-1);
 
-
-        [psi_p, psi_v] = macrofz(i-1, d_des, sum_p, sum_v, D, dv);
-
-        [dpsi_p, dpsi_v]=deriv_macrofz(i,d_des,sum_p, sum_v,sum_u, D, dv,du);
-        
-
+               
         % --- Nominal control ---
         Dvi_CP_dot = -kp * dv;
         Dvi_CP = -kp * (D - d_des);
         u_nom(i) = u_star(i-1) + Dvi_CP_dot - kv*(dv - Dvi_CP) - (D - d_des) - rho(i);
+   
+        if i==10 && (t>10 && t<15)  %veic=9
+            u_nom(i) = u_nom(i)+acc_max;
+        end
 
-
-        
-
+        % gamma_min=1.2;
+        % gamma_max=3;
+       
 
         % --- CBF constraint ---
-        % a1=1;
-        % b1=1;
+        if i==2
+            h_1 = -D - tau_d*dv;
+            % gamma_adapt = gamma_min + gamma_max * (h_1 < 0);
+            % alpha_h_1=gamma_adapt*h_1;
+            alpha_h_1=gamma*h_1;
+            u_req(i) =u_star(i-1) -dv/tau_d + alpha_h_1/tau_d;
+        else
+           
+            D_vect = p(2:i-1) - p(1:i-2);      % D_i = p_i - p_{i-1}
+            dv_vect = v(2:i-1) - v(1:i-2);     % dv_i = v_i - v_{i-1}
+            du_vect= u_star(i-1)- u_star(i-2);
+    
+            % medie
+            media_D = mean(D_vect);
+            media_dv = mean(dv_vect);
+            media_u=mean(du_vect);
+    
+            % varianze
+            var_D = mean((D_vect - media_D).^2);
+            var_dv = mean((dv_vect - media_dv).^2);
+    
+            % macrofunzioni
+            psi_p = sign(media_D - d_des) * sqrt(var_D);
+            psi_v = sign(media_dv) * sqrt(var_dv);
+    
+    
+    
+            dmedia_D=media_dv;
+            dmedia_v=media_u;
+    
+            tol = 1e-3;
+            if var_D < tol
+                dpsi_p = 0;
+            else
+                dvar_p = 2 .* (D_vect - media_D) .* (dv_vect - dmedia_D);
+                dpsi_p=sign(media_D+d_des).*(1/2).*(1/sqrt(var_D)).*dvar_p;
+            end
+        
+            if var_D < tol
+                dpsi_v = 0;
+            else
+                dvar_v = 2 .* (dv_vect - media_dv) .* (du_vect - dmedia_v);
+                dpsi_v=sign(media_dv).*(1/2).*(1/sqrt(var_dv)).*dvar_v;
+            end
+
+            h = -D - tau_d*dv + a*psi_p +b*psi_v;
+            % gamma_adapt = gamma_min + gamma_max * (h < 0);
+            % alpha_h=gamma_adapt*h;
+            alpha_h=gamma*h;
+            u_req(i) =u_star(i-1) -dv/tau_d + (a*dpsi_p(end))/tau_d + (a*dpsi_v(end))/tau_d + alpha_h/tau_d;
+
+        end 
        
-        h = -D - tau_d*dv + a*psi_p + b*psi_v;
-        % 
-        gamma_min=2;
-        gamma_max=50;
-
-        gamma_adapt = gamma_min + (gamma_max) * max(0, -h);
-        alpha_h=gamma_adapt*h;
-        % alpha_h=gamma*h;
-
-
 
         %DEBUG
         % % --- before computing u_req ---
@@ -126,10 +162,7 @@ function [u_nom, u_star, u_req] = compute_control(t,p,v,rho,N,d_des,kp,kv,tau_d,
         %     keyboard;
         % end
 
-
-        
-        u_req(i) =u_star(i-1) -dv/tau_d + (a*dpsi_p)/tau_d + (b*dpsi_v)/tau_d+ alpha_h/tau_d;
-        u_req(i) = min(max(u_req(i), -acc_max), acc_max);
+        % u_req(i) = min(max(u_req(i), -acc_max), acc_max);
 
         
         % u_star(i)=min(u_req(i),u_nom(i));
@@ -150,7 +183,8 @@ function [u_nom, u_star, u_req] = compute_control(t,p,v,rho,N,d_des,kp,kv,tau_d,
         H = 1;       % 1x1 quadratic term
         f = -u_nom(i); % linear term
         A = 1;      % inequality: u <= u_req
-        b = u_req(i);
+        % b = u_req(i);
+        b = max(u_req(i), -acc_max);
         lb = -acc_max;
         ub = acc_max;
         options = optimoptions('quadprog','Display','off');
@@ -194,36 +228,6 @@ function [psi_p, psi_v]=macrofz(i,d_des,somma_p,somma_v,p_i,v_i)
 
 end
 
-function [dpsi_p, dpsi_v]=deriv_macrofz(i,d_des,somma_p,somma_v,somma_u,p_i,v_i,u_i)
-    tol = 1e-3;
-    media_p=somma_p/(i);  %medie
-    media_v=somma_v/(i);
-    media_u=somma_u/(i);
-
-    dmedia_p=somma_v/(i);
-    dmedia_v=somma_u/(i);
-    
-    var_p=(p_i-media_p)^2/(i); %varianze
-    var_v=(v_i-media_v)^2/(i);
-
-    if var_p < tol
-        dpsi_p = 0;
-    else
-        dvar_p = 2 * (p_i - media_p) * (v_i - dmedia_p);
-        dpsi_p=sign(media_p+d_des)*(1/2)*(1/sqrt(var_p))*dvar_p;
-    end
-
-    if var_v < tol
-        dpsi_v = 0;
-    else
-        dvar_v = 2 * (v_i - media_v) * (u_i - dmedia_v);
-        dpsi_v=sign(media_v)*(1/2)*(1/sqrt(var_v))*dvar_v;
-    end
-  
- 
-
-
-end
 
                           
 function dx = platoon_dyn(t,x,N,d_des,kp,kv,a,b,l,sum_p,sum_v,sum_u,v_leader_fun,tau_d,gamma,acc_max)
@@ -234,40 +238,41 @@ function dx = platoon_dyn(t,x,N,d_des,kp,kv,a,b,l,sum_p,sum_v,sum_u,v_leader_fun
     v = x(2:3:end);
     rho=x(3:3:end);
 
+  
 
-    [u_nom,u_star,u_req] = compute_control(t,p,v,rho, N, d_des, kp, kv, tau_d, gamma, acc_max, v_leader_fun,sum_p,sum_v,sum_u,a,b);
+
+    [u_nom,u_star,u_req] = compute_control(t,p,v,rho, N, d_des, kp, kv, tau_d, gamma, acc_max, v_leader_fun,a,b);
     
     %-----Leader dyn-----%
     dx(1)=v(1);
     dx(2)=u_nom(1);
-    u_star(1)=u_nom(1);
 
     if(t>10 && t<15)
-      dx(2)=u_nom(1)+5;
+      dx(2)=u_nom(1)+acc_max;
     end
 
     % followers
     for i=2:N
-        D = p(i)-p(i-1);
-        dv = v(i)-v(i-1);
-        du=u_star(i)-u_star(i-1);
 
-        sum_p=sum_p+D;
-        sum_v=sum_v+dv;
-        sum_u=sum_u+du;
-        [psi_p, psi_v]=macrofz(i-1,d_des,sum_p,sum_v,D,dv);
+        if i==2
+            dx(3*i-2) = v(i);
+            dx(3*i-1) = u_star(i);
+            dx(3*i)  = -l*x(3*i);
+
+        else
+            D = p(i-1)-p(i-2);
+            dv = v(i-1)-v(i-2);
+            
+    
+            sum_p=sum_p+D;
+            sum_v=sum_v+dv;
+            
+            [psi_p, psi_v]=macrofz(i-2,d_des,sum_p,sum_v,D,dv);     
 
 
-        dx(3*i-2) = v(i);
-        dx(3*i-1) = u_star(i);
-        dx(3*i)  = -l*x(3*i)+a*psi_p+b*psi_v;
-
-        if i==9 && (t>10 && t<15)  %veic=8
-            dx(3*i-1) = u_star(i)-6;
-        end
-
-        if i==10  && (t>10 && t<15) %veic=9
-            dx(3*i-1) = u_star(i)+6;
+            dx(3*i-2) = v(i);
+            dx(3*i-1) = u_star(i);
+            dx(3*i)  = -l*x(3*i)+a*psi_p+b*psi_v;
         end
 
 
@@ -297,7 +302,7 @@ U_req =  zeros(length(t), N);
 
 
 for k = 1:length(t)
-    [u_nom, u_star,u_req] = compute_control(t(k), p(k,:)', v(k,:)', rho(k,:)', N, d_des, kp, kv, tau_d, gamma, acc_max, v_leader_fun,sum_p,sum_v,sum_u,a,b);
+    [u_nom, u_star,u_req] = compute_control(t(k), p(k,:)', v(k,:)', rho(k,:)', N, d_des, kp, kv, tau_d, gamma, acc_max, v_leader_fun,a,b);
     U_nom(k,:) = u_nom;
     U_star(k,:) = u_star;
     U_req(k,:)= u_req;
@@ -342,14 +347,26 @@ l = ylabel("Distance [m]");
 set(l,'Interpreter','Latex'); l.FontSize = 16;
 hold on
 
-N = 10;                % numero di colori
-baseColor = [0 0 1];   % blu RGB
-colors = zeros(N,3);
+% N = 10;                % numero di colori
+% baseColor = [0 0 1];   % blu RGB
+% colors = zeros(N,3);
+% 
+% 
+% 
+% for i = 1:N
+%     factor = i/N;      % da 0.1 a 1
+%     colors(i,:) = baseColor * factor + (1-factor);  % mix con bianco
+% end
 
-for i = 1:N
-    factor = i/N;      % da 0.1 a 1
-    colors(i,:) = baseColor * factor + (1-factor);  % mix con bianco
+function cmap = bluegreen(n)
+    if nargin < 1
+        n = 64;
+    end
+    cmap = [linspace(0,0,n)', linspace(0,1,n)', linspace(1,0,n)'];
 end
+
+colors = bluegreen(N);
+
 
 
 hold on
@@ -459,7 +476,7 @@ figure; hold on; grid on;
 title('CBF Control (u_{star}), Required (u_{req}) and Bounds');
 xlabel('Time [s]'); ylabel('Acceleration [m/s^2]');
 
-vehicle_colors = lines(N-1);
+
 
 % ---- Plot dei bound ----
 array = [];               % array handle
@@ -473,7 +490,7 @@ labels{end+1} = '-acc_{max}';
 
 % ---- Per ogni veicolo ----
 for i = 2:N
-    base_color = vehicle_colors(i-1,:);
+    base_color = colors(i-1,:);
 
     % colore U_req
     req_color = min(base_color + 0.4, 1);
@@ -482,9 +499,14 @@ for i = 2:N
     array(end+1) = plot(t, U_star(:,i), '-', 'Color', base_color, 'LineWidth', 1.6);
     labels{end+1} = sprintf('u_{star,%d}', i-1);
 
+     % ---- u_nom(i) ----
+    array(end+1) = plot(t, U_nom(:,i), '--', 'Color', req_color, 'LineWidth', 2.2);
+    labels{end+1} = sprintf('u_{req,%d}', i-1);
+
     % ---- u_req(i) ----
     array(end+1) = plot(t, U_req(:,i), ':', 'Color', req_color, 'LineWidth', 2.2);
     labels{end+1} = sprintf('u_{req,%d}', i-1);
+
 end
 
 legend(array, labels, 'Location', 'best');
