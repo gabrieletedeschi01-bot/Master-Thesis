@@ -10,7 +10,8 @@ kp = 1; kv = 2;         % nominal controller gains
 acc_max = 10;           % actuator bounds
 
 tau_d = 1.8;             % headway-like parameter in h = D - tau_d * v_f
-gamma = 5;             % alpha(h) = gamma * h
+% gamma = 4;             % alpha(h) = gamma * h
+gamma = 5;
 
 tspan=[0:10^(-1):30];               % simulation horizon
 x0 = zeros(3*N,1);       % initial state [p1,v1,rho1,...,pN,vN,rhoN]
@@ -56,24 +57,48 @@ function [u_nom, u_star, u_req] = compute_control(t,p,v,rho,N,d_des,kp,kv,tau_d,
     u_nom(1) = -kl*(v(1) - v_leader_fun(t)); % nominal leader control
     u_nom(1) = min(max(u_nom(1), -acc_max), acc_max); % clip to actuator limits
     u_star(1)=u_nom(1);
+    
+    % if t>10 && t<15
+    %     u_star(1)=u_star(1)+acc_max;
+    % end
+
+    
 
     % --- Followers ---
     for i = 2:N
         D = p(i) - p(i-1);   % inter-vehicle distance
         dv = v(i) - v(i-1);  % relative velocity
 
+
         % --- Nominal control ---
         Dvi_CP_dot = -kp * dv;
         Dvi_CP = -kp * (D - d_des);
         u_nom(i) =  u_star(i-1)+Dvi_CP_dot - kv*(dv - Dvi_CP) - (D - d_des) - rho(i);
+        
+        % if i==2 && t>10 && t<15
+        %    u_star(1)=u_star(1)-acc_max;
+        % end
 
-        if i==10 && (t>10 && t<15)  %veic=9
-            u_nom(i) = u_nom(i)+acc_max;
-        end
-   
+        % if i==5 && t>10 && t<15
+        %    u_nom(i)=u_nom(i)-acc_max;
+        % end
+
+
+        % if i==2 && (t>5 && t<30)
+        %    u_nom(i)=u_nom(i)+10*sin(2*pi*0.1*t); %Ampiezza*sin(2*pi*frequenza*t);
+        % end
+
+        % if i==10 && (t>10 && t<15)  %veic=9
+        %     u_nom(i) = u_nom(i)+acc_max;
+        % end
+       
         
         % --- CBF constraint ---
         h = -D  - tau_d*dv;
+
+        h_dot= -dv -tau_d*(u_star(i)-u_star(i-1));
+
+        
 
         % gamma_min=1;
         % gamma_max=0.1;
@@ -84,7 +109,15 @@ function [u_nom, u_star, u_req] = compute_control(t,p,v,rho,N,d_des,kp,kv,tau_d,
 
         alpha_h=gamma*h;
 
+        % if h_dot+alpha_h<0
+        %     fprintf('CBF condition violated at t=%.2f, vehicle %d\n', t, i);
+        % end
+
         u_req(i) = u_star(i-1) - dv/tau_d + alpha_h/tau_d;
+
+        if u_req(i) < -acc_max
+           fprintf('QP infeasible at t=%.2f, vehicle %d\n', t, i);
+        end
 
 
         % --- QP formulation ---
@@ -135,11 +168,11 @@ function dx = platoon_dyn(t,x,N,d_des,kp,kv,a,b,l,sum_p,sum_v,v_leader_fun,tau_d
     
     %-----Leader dyn-----%
     dx(1)=v(1);
-    dx(2)=u_nom(1);
+    dx(2)=u_star(1);
 
-    if t>10 && t<15
-        dx(2)=u_nom(1)+acc_max;
-    end
+    % if t>10 && t<15
+    %     dx(2)=u_nom(1)-acc_max;
+    % end
 
     % followers
     for i=2:N
