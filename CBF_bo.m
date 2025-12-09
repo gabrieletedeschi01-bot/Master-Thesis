@@ -247,17 +247,7 @@ end
 
 
 
-%% Plot Positions and Velocities
-figure(1);
-l = title("Distance");
-set(l,'Interpreter','Latex'); l.FontSize = 16;
-l = xlabel("Time [s]");
-set(l,'Interpreter','Latex'); l.FontSize = 16;
-l = ylabel("Distance [m]");
-set(l,'Interpreter','Latex'); l.FontSize = 16;
-hold on
-
-
+%% Plots (same plotting structure as before, slightly cleaned)
 function cmap = bluegreen(n)
     if nargin < 1
         n = 64;
@@ -266,179 +256,61 @@ function cmap = bluegreen(n)
 end
 
 colors = bluegreen(N);
-
-hold on
+% Distances (plotted as negative of dist to match your previous style)
+figure(1); hold on; grid on;
+title('Distance');
+xlabel('Time [s]'); ylabel('Distance [m]');
 for i = 1:N-1
-    plot(t, -dist(:,i), 'Color', colors(i,:), 'LineWidth', 1.5, ...
-        'DisplayName', strcat('$p_{', string(i), '}-p_{',string(i-1), '}$'));
+    plot(t, -dist(:, i), 'Color', colors(i,:), 'LineWidth', 1.5);
 end
+legendStrings = arrayfun(@(i) sprintf('$p_{%d}-p_{%d}$', i, i-1), 1:N-1, 'UniformOutput', false);
+legend(legendStrings, 'Interpreter', 'latex');
 
-legend('Interpreter','Latex', 'FontSize', 16);
-grid on
-
-
-
-
+% Leader speed and speed differences
 figure(2);
-% Define the subplot for case i=2
-subplot(2, 1, 1);
-l = title("Speed of the leader");
-set(l,'Interpreter','Latex'); l.FontSize = 16;
-l = xlabel("Time [s]");
-set(l,'Interpreter','Latex'); l.FontSize = 16;
-l = ylabel("Speed [m/s]");
-set(l,'Interpreter','Latex'); l.FontSize = 16;
-hold on;
+subplot(2,1,1);
+plot(t, v(:,1), 'b', 'LineWidth', 1.5); grid on;
+title('Speed of the leader'); xlabel('Time [s]'); ylabel('Speed [m/s]');
 
-vel = v(:, 1);
-plot(t, vel, 'b', 'LineWidth', 1.5);
-grid on;
-legend('$v_0$', 'FontSize', 16,'Interpreter','Latex','Location', 'Best')
-
-subplot(2, 1, 2);
-l= title("Difference of speed of the followers");
-set(l,'Interpreter','Latex'); l.FontSize = 16;
-l = xlabel("Time [s]");
-set(l,'Interpreter','Latex'); l.FontSize = 16;
-l = ylabel("Speed [m/s]");
-set(l,'Interpreter','Latex'); l.FontSize = 16;
-hold on;
-
-
+subplot(2,1,2); hold on; grid on;
 for i = 2:N
-    vel = v(:, i) - v(:, i-1);
-    plot(t, vel, 'Color', colors(i,:), 'LineWidth', 1.5);
+    plot(t, v(:, i) - v(:, i-1), 'Color', colors(i,:), 'LineWidth', 1.2);
 end
+title('Difference of speed of the followers'); xlabel('Time [s]'); ylabel('Speed diff [m/s]');
+
+% Control inputs comparison
+figure; hold on; grid on;
 for i = 2:N
-    s(i-1) = strcat(' $v_{', string(i-1), '}-v_{',string(i-2), '}$');
+    base_color = colors(i,:);
+    req_color = min(base_color + 0.4, 1);
+    plot(t, U_star(:, i), '-', 'Color', base_color, 'LineWidth', 1.5);
+    plot(t, U_nom(:, i), '--', 'Color', base_color, 'LineWidth', 1.0);
+    plot(t, U_req(:, i), ':', 'Color', req_color, 'LineWidth', 2.0);
 end
-% for i=1:N
-%     vel = v(:,i);
-%     plot(t, vel, 'Color', colors(i,:), 'LineWidth', 1.5);
-% end
-% for i = 1:N
-%     s(i) = strcat(' $v_{', string(i-1), '}$');
-% end
-
-l = legend(s);
-set(l,'Interpreter','Latex','Orientation', 'vertical'); l.FontSize = 16;
-grid on
-
-
-%% Plot u_nom vs u_star (CBF)
-% figure(3);
-% hold on; grid on;
-% for i = 2:N
-%     plot(t, U_star(:,i), '-', 'Color', colors(i,:), 'LineWidth', 1.5);
-% end
-% l = title("CBF-filtered control");
-% set(l,'Interpreter','Latex'); l.FontSize = 16;
-% xlabel("Time [s]", 'Interpreter','Latex', 'FontSize',16);
-% ylabel("Control input $\mathrm{[m/s^2]}$", 'Interpreter','Latex', 'FontSize',16);
-% s = strings(2*N,1);
-% for i = 2:N
-%     s(i-1) = strcat('$u_{star,', string(i-1), '}$');
-% end
-% legend(s, 'Interpreter','Latex','FontSize',14, 'Location','Best');
-% 
-% figure(4);
-% hold on; grid on;
-% for i = 2:N
-%     plot(t, U_nom(:,i), '-', 'Color', colors(i,:), 'LineWidth', 1.5);
-% end
-% l = title("Nominal control");
-% set(l,'Interpreter','Latex'); l.FontSize = 16;
-% xlabel("Time [s]", 'Interpreter','Latex', 'FontSize',16);
-% ylabel("Control input $\mathrm{[m/s^2]}$", 'Interpreter','Latex', 'FontSize',16);
-% s = strings(2*N,1);
-% for i = 2:N
-%     s(i-1) = strcat('$u_{nom,', string(i-1), '}$');
-% end
-% legend(s, 'Interpreter','Latex','FontSize',14, 'Location','Best');
-% 
-% 
-% figure(5);
-% hold on; grid on;
-% for i = 2:N
-%     plot(t, U_req(:,i), '--', 'Color', colors(i,:), 'LineWidth', 1.5);
-% end
-% l = title("Required control");
-% set(l,'Interpreter','Latex'); l.FontSize = 16;
-% xlabel("Time [s]", 'Interpreter','Latex', 'FontSize',16);
-% ylabel("Control input $\mathrm{[m/s^2]}$", 'Interpreter','Latex', 'FontSize',16);
-% s = strings(2*N,1);
-% for i = 2:N
-%     s(i-1) = strcat('$u_{req,', string(i-1), '}$');
-% end
-% legend(s, 'Interpreter','Latex','FontSize',14, 'Location','Best');
-
-figure;
-hold on; grid on;
-
-vehicle_colors = lines(N-1);
-
+yline(acc_max, '--k'); yline(-acc_max, '--k');
+title('Control inputs comparison'); xlabel('Time [s]'); ylabel('u [m/s^2]');
+% Legend (construct for followers)
+leg = [];
 for i = 2:N
-    base_color = vehicle_colors(i-1,:);
-    
-    % Colori leggermente modificati per U_req (più chiari)
-    req_color = min(base_color + 0.4, 1); % schiarisci
-    
-    % CBF-filtered control
-    plot(t, U_star(:,i), '-', 'Color', base_color, 'LineWidth', 1.5);
-    
-    % Nominal control
-    plot(t, U_nom(:,i), '--', 'Color', base_color, 'LineWidth', 1.5);
-    
-    % Required control (più chiaro, linea spessa e puntata)
-    plot(t, U_req(:,i), ':', 'Color', req_color, 'LineWidth', 2.5);
+    leg = [leg, {sprintf('$u_{star,%d}$', i-1), sprintf('$u_{nom,%d}$', i-1), sprintf('$u_{req,%d}$', i-1)}];
 end
+legend(leg, 'Interpreter', 'latex', 'FontSize', 10, 'Location', 'Best');
 
-q1 = yline(acc_max,  '--k', 'LineWidth', 2);
-q2 = yline(-acc_max, '--k', 'LineWidth', 2);
-
-% Titolo e assi
-title("Control inputs comparison", 'Interpreter','Latex', 'FontSize',16);
-xlabel("Time [s]", 'Interpreter','Latex', 'FontSize',16);
-ylabel("Control input $\mathrm{[m/s^2]}$", 'Interpreter','Latex', 'FontSize',16);
-
-% Legenda chiara
-s = strings(3*(N+1),1);
+% CBF intervention magnitude
+figure; hold on; grid on;
 for i = 2:N
-    s(3*(i-2)+1) = strcat('$u_{star,', string(i-1), '}$');
-    s(3*(i-2)+2) = strcat('$u_{nom,', string(i-1), '}$');
-    s(3*(i-2)+3) = strcat('$u_{req,', string(i-1), '}$');
+    plot(t, U_nom(:, i) - U_star(:, i),'Color', colors(i,:), 'LineWidth', 1.2);
 end
+title('CBF intervention magnitude'); xlabel('Time [s]'); ylabel('u_{nom} - u_{CBF}');
+legend(arrayfun(@(i) sprintf('$\\Delta u_{%d}$', i-1), 2:N, 'UniformOutput', false), 'Interpreter', 'latex');
 
-s(end-1) = "$+a_{\max}$";
-s(end)   = "$-a_{\max}$";
-
-legend(s, 'Interpreter','Latex','FontSize',12, 'Location','Best');
-
-
-figure(6);
-hold on; grid on;
-
-for i = 2:N
-    plot(t, U_nom(:,i) - U_star(:,i), 'LineWidth', 1.5, 'Color', colors(i,:));
+% Safety function h
+figure; hold on; grid on;
+for i = 1:N-1
+    plot(t, h(:, i),'Color', colors(i,:), 'LineWidth', 1.2);
 end
+title('CBF safety function'); xlabel('Time [s]'); ylabel('$h = -\Delta p_i - \tau_d \Delta v_i$', 'Interpreter', 'latex');
+legend(arrayfun(@(i) sprintf('h_{%d}', i), 1:N-1, 'UniformOutput', false));
 
-xlabel('Time [s]'); ylabel('Delta control $u_{nom}-u_{CBF}$', 'Interpreter','Latex');
-title('CBF intervention magnitude');
-for i = 2:N
-    s(i-1) = strcat('$\Delta u_{',num2str(i-1),'}$');
-end
-legend(s, 'Interpreter','Latex','FontSize',14, 'Location','Best');
+%% End of script
 
-
-%% plot safety function
-figure(7); hold on; grid on;
-for i=1:N-1
-    plot(t, h(:,i), 'LineWidth', 1.5, 'Color', colors(i,:));
-end
-xlabel('Time [s]'); ylabel('$h = -\Delta p_i - \tau_d \Delta v_i$', 'Interpreter','Latex');
-title('CBF safety function');
-s = strings(N-1,1);
-for i = 1:N
-    s(i) = strcat('h_{', string(i), '}'); 
-end
-l = legend(s);
