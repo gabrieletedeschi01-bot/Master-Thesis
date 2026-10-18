@@ -1,41 +1,45 @@
 # Safety-Critical Control for Vehicle Platooning
 
-MATLAB-based research project on safety-critical control for vehicle platooning, combining Control Barrier Functions (CBFs) with nominal vehicle-following control and string-stability-oriented dynamics.
+MATLAB-based academic research project investigating safety-critical control for vehicle platooning by combining Control Barrier Functions (CBFs), nominal vehicle-following control, and string-stability-oriented dynamics.
 
-## Project Overview
+## Repository Structure
 
-The project investigates how safety constraints can be incorporated into the control of a vehicle platoon while preserving the behavior of a nominal controller.
-
-The repository contains MATLAB simulation scripts exploring different CBF formulations and model variants.
+- `src/Safety_Critical_Vehicle_Platooning.m` — MATLAB simulation script.
+- `results/` — exported simulation figures and result summaries (to be added after verification).
+- `docs/` — technical report and supporting documentation (in preparation).
 
 ## Methods and Tools
 
-- MATLAB numerical simulation using `ode45`
+- MATLAB numerical simulation with `ode45`
 - Nominal vehicle-following control
-- Control Barrier Function constraints
-- Quadratic Programming (QP) for control filtering using `quadprog`
-- Vehicle platoon dynamics and inter-vehicle spacing analysis
-- Simulation-based evaluation of control inputs and safety functions
-
-## Repository Status
-
-The code is being organized and reviewed for reproducibility. Different experimental variants are retained for comparison; their assumptions and results must be checked before they are presented as validated implementations.
+- Control Barrier Function safety constraint
+- Quadratic Programming (QP) control filtering with `quadprog`
+- Vehicle-platoon dynamics and inter-vehicle spacing analysis
+- Simulation-based analysis of control inputs and safety functions
 
 ## Requirements
 
 - MATLAB
 - Optimization Toolbox, for `quadprog`
 
+## Running the Simulation
+
+Open `src/Safety_Critical_Vehicle_Platooning.m` in MATLAB and run it. The script is designed to generate simulation plots. Check the script's assumptions, numerical behavior, and output figures before interpreting or presenting the results.
+
 ## Scope and Limitations
 
-This is an academic research project based on numerical simulations. Simulation results alone do not establish real-world vehicle safety or a formal guarantee of string stability.
+This is an academic numerical-simulation project. The code and results are still subject to review; simulation results alone do not establish real-world vehicle safety or a formal guarantee of string stability.
 
-## Authors and References
+## Publication and Conference Presentation
 
-Research context: Master's thesis project on safety-critical control for vehicle platooning.
+**Title:** *Safety via Control Barrier Functions in a String Stable platoon: a mesoscopic approach*
 
-Relevant publications and acknowledgements will be added after confirming the appropriate citation and publication details.
+**Conference:** IEEE International Conference on Intelligent Transportation Systems (ITSC 2026)
+
+**Authors:** Gabriele Tedeschi, Mattia Mattioni, Alessio Iovine
+
+**Status:** Presented at IEEE ITSC 2026. Publication link and DOI will be added when confirmed.
 
 ## License
 
-No reuse license has been specified yet. Please check the applicable academic and publication rights before redistributing the code.
+No reuse license has been specified. Please check applicable academic and publication rights before redistributing the code.
