@@ -1,0 +1,12 @@
+# Scenario 3 — CBF active with braking and sinusoidal leader disturbances
+
+## Purpose
+Extend Scenario 2 by adding the sinusoidal disturbance on the leader while retaining the braking disturbance on the rear vehicles and keeping the CBF active.
+
+## Figures to add
+- `inter_vehicle_distances.png` — inter-vehicle distances over time.
+- `vehicle_speeds.png` — vehicle speeds over time.
+- `cbf_safety_function.png` — CBF safety-function values for each vehicle.
+
+## Comparison
+Compare against Scenario 2 to isolate the additional effect of the sinusoidal leader disturbance. Keep all other parameters and initial conditions unchanged.
