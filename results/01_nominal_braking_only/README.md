@@ -2,35 +2,28 @@
 
 ## Objective
 
-Define the baseline case for assessing the response of the nominal vehicle-following controller to a braking perturbation, with the CBF safety filter disabled. This baseline is intended to be compared with Scenario 2, where the same experiment is run with CBF filtering enabled.
-
-## Intended configuration
-
-- Nominal vehicle-following control enabled.
-- Braking disturbance enabled according to the selected experimental definition.
-- CBF safety filter disabled.
-- Initial conditions, model parameters, simulation horizon, and solver settings matched to Scenario 2.
-- Sinusoidal leader disturbance disabled, so it does not confound the braking-only comparison.
-
-**Implementation status:** the current MATLAB script does not expose switches for this configuration. The CBF-related QP calculation is part of the current follower-control path, and disturbance conditions are embedded in `platoon_dyn`. Configure and validate the script before labelling a generated figure as Scenario 1.
+This scenario shows the platoon response to the braking disturbance with the nominal vehicle-following controller and without the CBF safety filter. It provides the baseline for comparison with Scenario 2, where the CBF filter is active.
 
 ## Figures
 
-No exported figure files are currently stored in this directory.
+The three PDF files in this directory show the time evolution of the main platoon variables for this nominal-control run.
 
-Recommended exports:
+### 1. Inter-vehicle distances — `distance_macro_nominal.pdf`
 
-- **Inter-vehicle distances:** trajectories for each adjacent vehicle pair, with axes and sign convention clearly stated.
-- **Speed response:** leader speed and follower-to-preceding-vehicle speed differences.
-- **CBF safety function (diagnostic):** optionally evaluate and plot the same safety function offline. Since the filter is intended to be disabled in this scenario, this plot must not be described as an active constraint enforcing safety.
+Shows the evolution over time of the inter-vehicle distances in the platoon. The curves make it possible to inspect how the spacing between consecutive vehicles changes after the braking disturbance and whether any spacing approaches the safety limit used in the model.
 
-## Interpretation checklist
+### 2. Vehicle velocities — `velocities_macro_nominal.pdf`
 
-- Verify the disturbance start/end times and the affected vehicle or vehicles.
-- Identify a collision only if the simulated distance satisfies the explicitly defined collision criterion.
-- Do not infer collision avoidance from the nominal controller design alone.
-- Keep the initial conditions and every other parameter identical to Scenario 2.
+Shows the velocity trajectories of the platoon vehicles over the simulation horizon. This plot illustrates how the braking disturbance propagates through the platoon and how the vehicles respond under nominal control.
 
-## Reproducibility record
+### 3. Safety function (H) — `h_macro_nominal.pdf`
 
-When figures are added, record the script revision, parameter values, random seed, solver settings, and exact disturbance configuration used to generate them.
+Shows the time evolution of the (H) safety-function values associated with the platoon. In this scenario the CBF safety filter is not intended to intervene, so the plot is a diagnostic of the safety-function evolution, not evidence that a CBF constraint is actively enforced. Interpret the values using the definition and sign convention implemented in the model.
+
+## How to use this scenario
+
+Compare these plots with the corresponding figures in [Scenario 2 — CBF enabled with braking disturbance](../02_cbf_braking_only/README.md). The intended difference between the scenarios is whether the CBF safety filter is active; initial conditions, braking profile, model parameters, and solver settings should otherwise match.
+
+## Reproducibility note
+
+The current MATLAB script has disturbance conditions embedded in `platoon_dyn` and does not expose top-level switches for independently selecting each scenario. To reproduce this figure set, verify the exact configuration used for the exported PDFs before treating it as a directly reproducible run. Record the script revision, parameter values, disturbance timing and affected vehicle, random seed, and solver settings.
