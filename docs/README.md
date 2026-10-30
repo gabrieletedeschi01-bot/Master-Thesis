@@ -2,7 +2,15 @@
 
 ## Purpose
 
-This directory is reserved for the technical explanation of the MATLAB implementation and the experiments for safety-critical control of vehicle platooning. The documentation should make the model, controller, safety filter, simulation assumptions, and interpretation of the figures traceable to the implementation in `src/Safety_Critical_Vehicle_Platooning.m`.
+This directory contains the technical documentation for the MATLAB implementation and simulation experiments on safety-critical control of vehicle platooning. The aim is to make the model, controller, safety filter, simulation assumptions, and interpretation of the results traceable to the implementation in `src/Safety_Critical_Vehicle_Platooning.m`.
+
+## Technical project report
+
+The repository includes a standalone companion report:
+
+**[Platooning – Technical Project Report (PDF)](Platooning_Safety_Critical_Control_Technical_Report.pdf)**
+
+The report summarises the platoon model, mesoscopic information, nominal controller, Control Barrier Function (CBF)-based safety layer, quadratic-programming (QP) filter, and the planned simulation scenarios. It is an independently typeset technical report inspired by the research work; it is not the official conference paper or publisher's version and does not replace the MATLAB source code or exported simulation data.
 
 ## Recommended document structure
 
