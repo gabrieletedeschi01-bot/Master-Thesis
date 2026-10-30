@@ -18,7 +18,18 @@ The work is associated with the paper **“Safety via Control Barrier Functions 
 | `results/01_nominal_braking_only/` | Documentation for the nominal-control baseline with braking disturbance and CBF intended to be disabled. No exported figures are currently stored here. |
 | `results/02_cbf_braking_only/` | Documentation for the braking-only case with the CBF intended to be enabled. No exported figures are currently stored here. |
 | `results/03_cbf_braking_and_leader_sine/` | Three exported PDF figures associated with the case involving braking and a sinusoidal leader disturbance, with CBF filtering. |
+| `docs/Platooning_Safety_Critical_Control_Technical_Report.pdf` | Standalone technical project report describing the platoon model, mesoscopic information, nominal controller, CBF-QP safety layer, design rationale, and simulation campaign. |
 | `docs/README.md` | Technical documentation outline and validation checklist. |
+
+## Technical report
+
+A standalone companion document is available here:
+
+**[Platooning – Technical Project Report (PDF)](docs/Platooning_Safety_Critical_Control_Technical_Report.pdf)**
+
+The report provides a concise technical overview of the modelling framework and control architecture, including the relative-state formulation, mesoscopic aggregate terms, nominal control law, macro-enhanced CBF, QP safety filter, and the three simulation configurations.
+
+The PDF is an independently typeset project report inspired by the underlying research work. It is **not** the official conference paper or publisher's version, and it does not replace the full paper, MATLAB implementation, or exported simulation data. Its descriptions should be interpreted together with the implementation and the reproducibility limitations stated in this README.
 
 ## Main methods
 
